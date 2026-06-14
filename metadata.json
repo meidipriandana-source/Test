@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Absensi Kegiatan",
+  "description": "Aplikasi absensi peserta kegiatan dengan tanda tangan digital, ekspor PDF/Excel, dan dashboard pemantauan real-time terintegrasi dengan Google Spreadsheet dan Google Drive.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
