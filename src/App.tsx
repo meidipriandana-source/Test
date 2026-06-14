@@ -202,7 +202,7 @@ export default function App() {
             <ClipboardCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-sm md:text-base font-extrabold text-white tracking-tight leading-none">AbsenKita</h1>
+            <h1 className="text-sm md:text-base font-extrabold text-white tracking-tight leading-none">Absen Peserta Kegiatan</h1>
             <span className="inline-block text-[9px] text-indigo-300 font-semibold tracking-wider uppercase mt-1">Smart Presence System</span>
           </div>
         </div>
