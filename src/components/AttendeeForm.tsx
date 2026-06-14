@@ -245,7 +245,7 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
                   placeholder="Contoh: Budi Santoso, M.Kom"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
                 />
               </div>
             </div>
@@ -265,7 +265,7 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
                   placeholder="Contoh: Universitas Indonesia / Dinas Kesehatan / Umum"
                   value={instansi}
                   onChange={(e) => setInstansi(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
                 />
               </div>
             </div>
@@ -285,7 +285,7 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
                   placeholder="Contoh: 198203112009031002"
                   value={nip}
                   onChange={(e) => setNip(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-850 placeholder-slate-400 font-mono font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-850 placeholder-slate-400 font-mono font-medium"
                 />
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
                   placeholder="Contoh: Kepala Seksi / Dosen / Peserta"
                   value={jabatan}
                   onChange={(e) => setJabatan(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
                 />
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
                   placeholder="Contoh: alamat@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.8 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
+                  className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white text-slate-800 placeholder-slate-400 font-medium"
                 />
               </div>
             </div>
