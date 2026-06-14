@@ -92,32 +92,100 @@ export default function AttendeeForm({ onSuccess, sessionActive }: AttendeeFormP
         }),
       });
 
-      const result = await response.json();
+      const contentType = response.headers.get("content-type");
+      if (response.ok && contentType && contentType.includes("application/json")) {
+        const result = await response.json();
+        // Clear local storage on success
+        clearLocalStorageCache();
 
-      if (!response.ok) {
-        throw new Error(result.error || "Gagal mengirim data.");
+        // Trigger success screen
+        onSuccess({
+          id: result.data.id,
+          name: result.data.name,
+          checkInTime: result.data.checkInTime,
+        });
+
+        // Clear Form state keys for next person
+        setName("");
+        setInstansi("");
+        setNip("");
+        setJabatan("");
+        setEmail("");
+        setSignature(null);
+      } else {
+        if (!response.ok && contentType && contentType.includes("application/json")) {
+          const result = await response.json();
+          throw new Error(result.error || "Gagal mengirim data.");
+        } else {
+          throw new Error("Offline fallback triggered");
+        }
       }
-
-      // Clear local storage on success
-      clearLocalStorageCache();
-
-      // Trigger success screen
-      onSuccess({
-        id: result.data.id,
-        name: result.data.name,
-        checkInTime: result.data.checkInTime,
-      });
-
-      // Clear Form state keys for next person
-      setName("");
-      setInstansi("");
-      setNip("");
-      setJabatan("");
-      setEmail("");
-      setSignature(null);
     } catch (err: any) {
       console.error("Attendance submission client error:", err);
-      setErrorMessage(err.message || "Koneksi terputus atau sesi admin tidak aktif. Silakan hubungi operator kegiatan.");
+      // If it is a real validation error from the API (e.g. Duplication), display it clearly
+      if (err.message && (err.message.includes("sudah terdaftar") || err.message.includes("wajib diisi") || err.message.includes("Sesi registrasi belum diaktifkan"))) {
+        setErrorMessage(err.message);
+      } else {
+        // Network refusal/offline fallback/Vercel static host fallback!
+        try {
+          console.log("Saving attendance record offline in localStorage...");
+          const now = new Date();
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          const checkInTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+          
+          const localBackupStr = localStorage.getItem("local_fallback_attendees") || "[]";
+          const localBackupList = JSON.parse(localBackupStr);
+          
+          // Check duplication offline
+          const isDup = localBackupList.some(
+            (a: any) => a.nip.trim().toLowerCase() === nip.trim().toLowerCase() && 
+                       a.name.trim().toLowerCase() === name.trim().toLowerCase()
+          );
+          
+          if (isDup) {
+            setErrorMessage(`Peserta dengan nama "${name}" dan NIP "${nip}" sudah terdaftar (offline).`);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          const newLocalAttendee = {
+            no: localBackupList.length + 1,
+            nip: nip.trim(),
+            name: name.trim(),
+            instansi: instansi.trim(),
+            jabatan: jabatan.trim(),
+            email: email.trim() || "-",
+            checkInTime,
+            signature, // Base64 image
+            signatureUrl: signature, // Inline Base64 image directly
+            sheetRowIndex: localBackupList.length + 2
+          };
+          
+          localBackupList.push(newLocalAttendee);
+          localStorage.setItem("local_fallback_attendees", JSON.stringify(localBackupList));
+          
+          // Clear cached inputs
+          clearLocalStorageCache();
+          
+          // Success ticket
+          onSuccess({
+            id: nip.trim(),
+            name: name.trim(),
+            checkInTime
+          });
+          
+          // Clear form fields
+          setName("");
+          setInstansi("");
+          setNip("");
+          setJabatan("");
+          setEmail("");
+          setSignature(null);
+        } catch (localErr: any) {
+          console.error("Failed to write to local storage backup:", localErr);
+          setErrorMessage("Terjadi kesalahan koneksi dan gagal menyimpan data cadangan offline.");
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }

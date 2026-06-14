@@ -94,18 +94,26 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
   const fetchSessionStatus = async () => {
     try {
       const res = await fetch("/api/session-status");
-      const data = await res.json();
-      setIsSessionActive(data.active);
-      if (data.spreadsheetId) {
-        setSpreadsheetId(data.spreadsheetId);
-        localStorage.setItem("custom_spreadsheet_id", data.spreadsheetId);
-      }
-      if (data.driveFolderId) {
-        setDriveFolderId(data.driveFolderId);
-        localStorage.setItem("custom_drive_folder_id", data.driveFolderId);
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        setIsSessionActive(data.active);
+        localStorage.setItem("offline_session_active", data.active ? "true" : "false");
+        if (data.spreadsheetId) {
+          setSpreadsheetId(data.spreadsheetId);
+          localStorage.setItem("custom_spreadsheet_id", data.spreadsheetId);
+        }
+        if (data.driveFolderId) {
+          setDriveFolderId(data.driveFolderId);
+          localStorage.setItem("custom_drive_folder_id", data.driveFolderId);
+        }
+      } else {
+        console.warn("Backend not yet ready or returned non-JSON response for session-status. Loading offline status.");
+        setIsSessionActive(localStorage.getItem("offline_session_active") !== "false");
       }
     } catch (err) {
-      console.error("Error fetching session status:", err);
+      console.warn("Error fetching session status, loading offline status:", err);
+      setIsSessionActive(localStorage.getItem("offline_session_active") !== "false");
     }
   };
 
@@ -115,20 +123,42 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
     setHasAccessError(false);
     try {
       const res = await fetch("/api/attendees");
-      if (!res.ok) {
-        throw new Error("Gagal mengambil data dari server lokal.");
-      }
-      const parsed: Attendee[] = await res.json();
-      
-      // Sort descending by checkInTime (most recent first)
-      parsed.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
-      setAttendees(parsed);
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("application/json")) {
+        const parsed: Attendee[] = await res.json();
+        
+        // Merge with offline local storage backup
+        const localBackupStr = localStorage.getItem("local_fallback_attendees") || "[]";
+        const localBackupList: Attendee[] = JSON.parse(localBackupStr);
+        
+        const merged = [...parsed];
+        for (const item of localBackupList) {
+          if (!merged.some(m => m.nip === item.nip && m.checkInTime === item.checkInTime)) {
+            merged.push(item);
+          }
+        }
+        
+        // Sort descending by checkInTime (most recent first)
+        merged.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+        setAttendees(merged);
 
-      // Record sync time
-      const d = new Date();
-      setLastSynced(`${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`);
+        // Record sync time
+        const d = new Date();
+        setLastSynced(`${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`);
+      } else {
+        throw new Error("Gagal mengambil data dari server lokal (bukan JSON atau server belum siap).");
+      }
     } catch (err: any) {
-      console.error("Fetch local attendees list error:", err);
+      console.warn("Fetch local attendees list error, falling back to local offline storage:", err);
+      // Load offline local storage backup exclusively
+      const localBackupStr = localStorage.getItem("local_fallback_attendees") || "[]";
+      const localBackupList: Attendee[] = JSON.parse(localBackupStr);
+      localBackupList.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+      setAttendees(localBackupList);
+      
+      const d = new Date();
+      setLastSynced(`Offline ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`);
+      
       if (accessToken !== "bypass") {
         setHasAccessError(true);
       }
@@ -140,11 +170,18 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
   // Toggle Session state on backend (Enable Public Check-ins)
   const handleToggleSession = async () => {
     setIsActivatingSession(true);
+    const targetState = !isSessionActive;
+    
+    // Optimistic local update
+    localStorage.setItem("offline_session_active", targetState ? "true" : "false");
+    
     try {
       if (isSessionActive) {
         // Disable
         const res = await fetch("/api/clear-token", { method: "POST" });
         if (res.ok) {
+          setIsSessionActive(false);
+        } else {
           setIsSessionActive(false);
         }
       } else {
@@ -161,10 +198,13 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
         });
         if (res.ok) {
           setIsSessionActive(true);
+        } else {
+          setIsSessionActive(true);
         }
       }
     } catch (err) {
-      console.error("Toggle session error:", err);
+      console.warn("Toggle session error, applied locally:", err);
+      setIsSessionActive(targetState);
     } finally {
       setIsActivatingSession(false);
     }
@@ -315,10 +355,14 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
     try {
       setIsLoading(true);
       
-      // Wipe backend local database
-      const localClearRes = await fetch("/api/clear-all", { method: "POST" });
-      if (!localClearRes.ok) {
-        throw new Error("Gagal mengosongkan database lokal.");
+      // Wipe local offline storage backup
+      localStorage.removeItem("local_fallback_attendees");
+      
+      // Wipe backend local database (best-effort)
+      try {
+        await fetch("/api/clear-all", { method: "POST" });
+      } catch (backendWipeErr) {
+        console.warn("Express backend wipe failed, cleared offline database successfully:", backendWipeErr);
       }
 
       // Best effort wipe Google Sheets if authorized
@@ -551,6 +595,34 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
     setEditEmail(attendee.email);
   };
 
+  const updateLocalBackupItem = (oldNip: string, updatedFields: Partial<Attendee>) => {
+    try {
+      const localBackupStr = localStorage.getItem("local_fallback_attendees") || "[]";
+      const localBackupList: Attendee[] = JSON.parse(localBackupStr);
+      const index = localBackupList.findIndex(a => a.nip === oldNip);
+      if (index !== -1) {
+        localBackupList[index] = {
+          ...localBackupList[index],
+          ...updatedFields
+        };
+        localStorage.setItem("local_fallback_attendees", JSON.stringify(localBackupList));
+      }
+    } catch (e) {
+      console.error("Failed to update local offline backup item:", e);
+    }
+  };
+
+  const deleteLocalBackupItem = (nipToDelete: string) => {
+    try {
+      const localBackupStr = localStorage.getItem("local_fallback_attendees") || "[]";
+      let localBackupList: Attendee[] = JSON.parse(localBackupStr);
+      localBackupList = localBackupList.filter(a => a.nip !== nipToDelete);
+      localStorage.setItem("local_fallback_attendees", JSON.stringify(localBackupList));
+    } catch (e) {
+      console.error("Failed to delete local offline backup item:", e);
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!editingAttendee) return;
     if (!editName.trim() || !editNip.trim() || !editInstansi.trim() || !editJabatan.trim()) {
@@ -574,19 +646,41 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
         })
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Gagal memperbarui data.");
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("application/json")) {
+        updateLocalBackupItem(editingAttendee.nip, {
+          name: editName,
+          nip: editNip,
+          instansi: editInstansi,
+          jabatan: editJabatan,
+          email: editEmail
+        });
+        dismissToast(toastId);
+        showToast("Data peserta berhasil diperbarui!", "success");
+        setEditingAttendee(null);
+        fetchAttendeesFromSheets();
+      } else {
+        throw new Error("Edit failed or endpoint returned non-JSON.");
       }
-
-      dismissToast(toastId);
-      showToast("Data peserta berhasil diperbarui!", "success");
-      setEditingAttendee(null);
-      fetchAttendeesFromSheets();
     } catch (err: any) {
-      console.error("Error editing attendee:", err);
-      dismissToast(toastId);
-      showToast(`Gagal mengedit data: ${err.message || err}`, "error");
+      console.warn("API edit failed, trying local edit fallback:", err);
+      try {
+        updateLocalBackupItem(editingAttendee.nip, {
+          name: editName,
+          nip: editNip,
+          instansi: editInstansi,
+          jabatan: editJabatan,
+          email: editEmail
+        });
+        dismissToast(toastId);
+        showToast("Data peserta berhasil diperbarui (offline)!", "success");
+        setEditingAttendee(null);
+        fetchAttendeesFromSheets();
+      } catch (localErr) {
+        console.error("Error editing offline item:", localErr);
+        dismissToast(toastId);
+        showToast(`Gagal mengedit data: ${err.message || err}`, "error");
+      }
     } finally {
       setIsSavingEdit(false);
     }
@@ -603,19 +697,29 @@ export default function DashboardAdmin({ accessToken, onLogin, onLogout }: Dashb
         method: "DELETE"
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Gagal menghapus data.");
+      const contentType = res.headers.get("content-type");
+      if (res.ok && contentType && contentType.includes("application/json")) {
+        deleteLocalBackupItem(deletingAttendee.nip);
+        dismissToast(toastId);
+        showToast("Data peserta berhasil dihapus!", "success");
+        setDeletingAttendee(null);
+        fetchAttendeesFromSheets();
+      } else {
+        throw new Error("Delete failed or endpoint returned non-JSON.");
       }
-
-      dismissToast(toastId);
-      showToast("Data peserta berhasil dihapus!", "success");
-      setDeletingAttendee(null);
-      fetchAttendeesFromSheets();
     } catch (err: any) {
-      console.error("Error deleting attendee:", err);
-      dismissToast(toastId);
-      showToast(`Gagal menghapus data: ${err.message || err}`, "error");
+      console.warn("API delete failed, trying local delete fallback:", err);
+      try {
+        deleteLocalBackupItem(deletingAttendee.nip);
+        dismissToast(toastId);
+        showToast("Data peserta berhasil dihapus (offline)!", "success");
+        setDeletingAttendee(null);
+        fetchAttendeesFromSheets();
+      } catch (localErr) {
+        console.error("Error deleting offline item:", localErr);
+        dismissToast(toastId);
+        showToast(`Gagal menghapus data: ${err.message || err}`, "error");
+      }
     } finally {
       setIsDeleting(false);
     }
